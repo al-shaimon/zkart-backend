@@ -34,14 +34,15 @@ model User {
 
 // Customer Model - Customer specific data
 model Customer {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  address      String?
-  phone        String?
-  profilePhoto String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  profilePhoto  String?
+  contactNumber String
+  address       String?
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   user      User           @relation(fields: [email], references: [email])
@@ -296,6 +297,7 @@ model OrderItem {
 enum UserStatus {
   ACTIVE
   BLOCKED
+  DELETED
 }
 
 enum OrderStatus {

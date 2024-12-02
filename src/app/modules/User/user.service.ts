@@ -131,7 +131,6 @@ const getAllFromDB = async (params: any, options: IPaginationOptions) => {
     });
   }
 
-  // console.dir(andConditions, { depth: 'infinity' });
   const whereConditions: Prisma.UserWhereInput =
     andConditions.length > 0 ? { AND: andConditions } : {};
 
@@ -147,17 +146,29 @@ const getAllFromDB = async (params: any, options: IPaginationOptions) => {
         : {
             createdAt: 'desc',
           },
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
       admin: true,
-      customer: true,
       vendor: true,
+      customer: true,
     },
+  });
+
+  const transformedResult = result.map((user) => {
+    const { admin, vendor, customer, ...userData } = user;
+    let roleSpecificData = null;
+
+    if (user.role === UserRole.ADMIN) {
+      roleSpecificData = admin;
+    } else if (user.role === UserRole.VENDOR) {
+      roleSpecificData = vendor;
+    } else if (user.role === UserRole.CUSTOMER) {
+      roleSpecificData = customer;
+    }
+
+    return {
+      ...userData,
+      profile: roleSpecificData,
+    };
   });
 
   const total = await prisma.user.count({
@@ -170,7 +181,7 @@ const getAllFromDB = async (params: any, options: IPaginationOptions) => {
       limit,
       total,
     },
-    data: result,
+    data: transformedResult,
   };
 };
 

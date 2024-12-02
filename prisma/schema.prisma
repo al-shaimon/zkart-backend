@@ -20,7 +20,7 @@ model User {
   email        String     @unique
   image        String?
   password     String
-  role         Role       @default(CUSTOMER)
+  role         UserRole   @default(CUSTOMER)
   status       UserStatus @default(ACTIVE)
   isVerified   Boolean    @default(false)
   refreshToken String?
@@ -194,7 +194,7 @@ enum OrderStatus {
   CANCELLED
 }
 
-enum Role {
+enum UserRole {
   ADMIN
   VENDOR
   CUSTOMER

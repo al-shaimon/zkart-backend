@@ -13,109 +13,205 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model
+// User model - Contains only authentication and common fields
 model User {
-  userId       String     @id @default(uuid())
-  name         String
-  email        String     @unique
-  image        String?
-  password     String
-  role         UserRole   @default(CUSTOMER)
-  status       UserStatus @default(ACTIVE)
-  isVerified   Boolean    @default(false)
-  refreshToken String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id         String     @id @default(uuid())
+  email      String     @unique
+  password   String
+  role       UserRole   @default(CUSTOMER)
+  status     UserStatus @default(ACTIVE)
+  isVerified Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
-  shop      Shop?
-  orders    Order[]
-  reviews   Review[]
-  cart      Cart?
-  following Follower[]
+  // Role-based relations
+  admin    Admin?
+  vendor   Vendor?
+  customer Customer?
 
   @@map("users")
 }
 
-// Cart Model
+// Customer Model - Customer specific data
+model Customer {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  address      String?
+  phone        String?
+  profilePhoto String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user      User           @relation(fields: [email], references: [email])
+  following ShopFollower[]
+  orders    Order[]
+  reviews   Review[]
+  cart      Cart?
+
+  // Many-to-many relations with junction tables
+  recentlyViewed     CustomerRecentProduct[]
+  productComparisons CustomerProductComparison[]
+
+  @@map("customers")
+}
+
+// Admin Model - Admin specific data
+model Admin {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  profilePhoto  String?
+  contactNumber String
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [email], references: [email])
+
+  @@map("admins")
+}
+
+// Vendor Model - Vendor specific data
+model Vendor {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  profilePhoto  String?
+  contactNumber String
+  address       String?
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user  User   @relation(fields: [email], references: [email])
+  shops Shop[] // Changed from single shop to multiple shops
+
+  @@map("vendors")
+}
+
+// Update related models to reference Customer instead of User
+model Order {
+  id          String      @id @default(uuid())
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  totalAmount Float
+  status      OrderStatus
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  couponId String?
+  coupon   Coupon? @relation(fields: [couponId], references: [id])
+  discount Float   @default(0)
+
+  paymentId     String?
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod @default(STRIPE)
+  reviews       Review[] // Add relation to track which products can be reviewed
+
+  @@map("orders")
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  orderId    String // To verify purchase
+  order      Order    @relation(fields: [orderId], references: [id])
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relation for vendor response
+  response ReviewResponse?
+
+  @@map("reviews")
+}
+
 model Cart {
-  cartId    String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [userId])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  customerId String   @unique
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   items CartItem[]
 
   @@map("carts")
 }
 
-// CartItem Model
-model CartItem {
-  cartItemId String @id @default(uuid())
-
-  cartId String
-  cart   Cart   @relation(fields: [cartId], references: [cartId])
-
-  productId String
-  product   Product @relation(fields: [productId], references: [productId])
-
-  quantity  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("cart_items")
-}
-
-// Product Model
+// Product model update for customer relations
 model Product {
-  productId String @id @default(uuid())
+  id             String    @id @default(uuid())
+  shopId         String
+  categoryId     String
+  name           String
+  price          Float
+  stock          Int
+  discount       Float?
+  image          String
+  description    String?
+  isFlashSale    Boolean   @default(false)
+  flashSalePrice Float?
+  flashSaleEnds  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  shopId String
-  shop   Shop   @relation(fields: [shopId], references: [shopId])
+  // Relations
+  shop       Shop        @relation(fields: [shopId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
+  reviews    Review[]
+  orderItems OrderItem[]
+  cartItems  CartItem[]
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [categoryId])
+  // Many-to-many relations with junction tables
+  viewedByCustomers   CustomerRecentProduct[]
+  comparedByCustomers CustomerProductComparison[]
 
-  name        String
-  price       Float
-  stock       Int
-  discount    Float?
-  image       String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // Add fields for product duplication
+  originalProducts   ProductDuplicate[] @relation("OriginalProduct")
+  duplicatedProducts ProductDuplicate[] @relation("DuplicateProduct")
 
-  reviews Review[]
+  // Add fields for related products
+  // relatedProducts Product[] @relation("RelatedProducts")
+  // relatedTo       Product[] @relation("RelatedProducts")
 
-  OrderItem OrderItem[]
-
-  CartItem CartItem[]
+  // Add fields for product images
+  images ProductImage[]
 
   @@map("products")
 }
 
 // Shop Model
 model Shop {
-  shopId String @id @default(uuid())
+  id            String   @id @default(uuid())
+  vendorId      String   @unique
+  shopName      String
+  description   String?
+  logo          String?
+  isBlacklisted Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  vendorId String @unique
-  vendor   User   @relation(fields: [vendorId], references: [userId])
-
-  shopName    String
-  description String?
-  logo        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  products Product[]
-  Follower Follower[]
+  // Relations
+  vendor    Vendor         @relation(fields: [vendorId], references: [id])
+  products  Product[]
+  followers ShopFollower[]
+  blacklist ShopBlacklist?
 
   @@map("shops")
 }
 
 // Product category Model
 model Category {
-  categoryId  String    @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String    @unique
   description String?
   products    Product[]
@@ -125,58 +221,74 @@ model Category {
   @@map("categories")
 }
 
-// Review Model
-model Review {
-  reviewId  String   @id @default(uuid())
-  product   Product  @relation(fields: [productId], references: [productId])
+// CartItem Model
+model CartItem {
+  cartItemId String @id @default(uuid())
+
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id])
+
   productId String
-  user      User     @relation(fields: [userId], references: [userId])
-  userId    String
-  rating    Int
-  comment   String?
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("reviews")
+  @@map("cart_items")
 }
 
-// Follower Model
-model Follower {
-  followerId String   @id @default(uuid())
-  user       User     @relation(fields: [userId], references: [userId])
-  userId     String
-  shop       Shop     @relation(fields: [shopId], references: [shopId])
+// Junction table for Recently Viewed Products
+model CustomerRecentProduct {
+  id         String   @id @default(uuid())
+  customerId String
+  productId  String
+  viewedAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([customerId, productId])
+  @@map("customer_recent_products")
+}
+
+// Junction table for Product Comparisons
+model CustomerProductComparison {
+  id         String   @id @default(uuid())
+  customerId String
+  productId  String
+  addedAt    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([customerId, productId])
+  @@map("customer_product_comparisons")
+}
+
+// Junction table for Shop Followers
+model ShopFollower {
+  id         String   @id @default(uuid())
+  customerId String
   shopId     String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  followedAt DateTime @default(now())
 
-  @@map("followers")
-}
+  customer Customer @relation(fields: [customerId], references: [id])
+  shop     Shop     @relation(fields: [shopId], references: [id])
 
-// Order Model
-model Order {
-  orderId     String      @id @default(uuid())
-  user        User        @relation(fields: [userId], references: [userId])
-  userId      String
-  totalAmount Float
-  status      OrderStatus
-  paymentId   String?
-  orderItems  OrderItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  @@map("orders")
+  @@unique([customerId, shopId])
+  @@map("shop_followers")
 }
 
 // OrderItem Model
 model OrderItem {
-  orderItemId String  @id @default(uuid())
-  order       Order   @relation(fields: [orderId], references: [orderId])
-  orderId     String
-  product     Product @relation(fields: [productId], references: [productId])
-  productId   String
-  quantity    Int
-  price       Float
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Float
 
   @@map("order_items")
 }
@@ -198,4 +310,83 @@ enum UserRole {
   ADMIN
   VENDOR
   CUSTOMER
+}
+
+// Coupon Model
+model Coupon {
+  id         String    @id @default(uuid())
+  code       String    @unique
+  discount   Float
+  isActive   Boolean   @default(true)
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+  usageLimit Int?
+  usageCount Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  orders Order[]
+
+  @@map("coupons")
+}
+
+// ShopBlacklist Model
+model ShopBlacklist {
+  id            String   @id @default(uuid())
+  shopId        String   @unique
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  reason        String?
+  blacklistedAt DateTime @default(now())
+
+  @@map("shop_blacklist")
+}
+
+// Add ProductDuplicate model to track duplicated products
+model ProductDuplicate {
+  id               String   @id @default(uuid())
+  originalId       String
+  originalProduct  Product  @relation("OriginalProduct", fields: [originalId], references: [id])
+  duplicateId      String
+  duplicateProduct Product  @relation("DuplicateProduct", fields: [duplicateId], references: [id])
+  createdAt        DateTime @default(now())
+
+  @@map("product_duplicates")
+}
+
+// Add ProductImage model for multiple images
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  url       String
+  isMain    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_images")
+}
+
+// Add ReviewResponse model for vendor responses
+model ReviewResponse {
+  id        String   @id @default(uuid())
+  reviewId  String   @unique
+  review    Review   @relation(fields: [reviewId], references: [id])
+  response  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("review_responses")
+}
+
+// Add necessary enums
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  AAMARPAY
 }

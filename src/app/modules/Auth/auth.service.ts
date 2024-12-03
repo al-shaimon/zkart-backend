@@ -121,8 +121,7 @@ const forgotPassword = async (payload: { email: string }) => {
     config.jwt.reset_pass_token_expires_in as string
   );
 
-  const resetPassLink =
-    config.reset_pass_link + `?userId=${userData.userId}&token=${resetPassToken}`;
+  const resetPassLink = config.reset_pass_link + `?userId=${userData.id}&token=${resetPassToken}`;
 
   await emailSender(
     userData.email,
@@ -155,7 +154,7 @@ const resetPassword = async (
 
   const userData = await prisma.user.findUniqueOrThrow({
     where: {
-      userId: payload.id,
+      id: payload.id,
       status: UserStatus.ACTIVE,
     },
   });
@@ -172,7 +171,7 @@ const resetPassword = async (
   // update into database
   await prisma.user.update({
     where: {
-      userId: payload.id,
+      id: payload.id,
       status: UserStatus.ACTIVE,
     },
     data: {

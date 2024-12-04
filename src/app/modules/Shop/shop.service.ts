@@ -255,10 +255,60 @@ const deleteShop = async (id: string, vendorId: string): Promise<Shop> => {
   return result;
 };
 
+const getMyShop = async (userEmail: string): Promise<Shop> => {
+  // First, get the vendor information using the email
+  const vendor = await prisma.vendor.findUnique({
+    where: {
+      email: userEmail,
+      isDeleted: false
+    }
+  });
+
+  if (!vendor) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Vendor information not found');
+  }
+
+  // Get the vendor's shop
+  const shop = await prisma.shop.findFirst({
+    where: {
+      vendorId: vendor.id,
+      isDeleted: false
+    },
+    include: {
+      vendor: true,
+      products: {
+        where: {
+          isDeleted: false
+        },
+        include: {
+          category: true,
+          reviews: {
+            include: {
+              customer: true
+            }
+          }
+        }
+      },
+      followers: {
+        include: {
+          customer: true
+        }
+      }
+    }
+  });
+
+  if (!shop) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Shop not found');
+  }
+
+  return shop;
+};
+
 export const ShopService = {
   createShop,
   getAllShops,
   getShopById,
   updateShop,
   deleteShop,
+  getMyShop
 };

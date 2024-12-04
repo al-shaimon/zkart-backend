@@ -6,6 +6,12 @@ import { fileUploader } from '../../../helpers/fileUploader';
 
 const router = express.Router();
 
+router.get('/', ShopController.getAllShops);
+
+router.get('/my-shop', auth(UserRole.VENDOR), ShopController.getMyShop);
+
+router.get('/:id', ShopController.getShopById);
+
 router.post(
   '/',
   auth(UserRole.VENDOR),
@@ -19,10 +25,6 @@ router.post(
     }
   }
 );
-
-router.get('/', ShopController.getAllShops);
-
-router.get('/:id', ShopController.getShopById);
 
 router.patch(
   '/:id',

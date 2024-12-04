@@ -54,7 +54,7 @@ const getShopById = catchAsync(async (req: Request, res: Response) => {
 const updateShop = catchAsync(async (req: Request & { user?: any }, res: Response) => {
   const { id } = req.params;
   const userEmail = req.user?.email;
-  
+
   if (!userEmail) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'User information not found');
   }
@@ -65,7 +65,7 @@ const updateShop = catchAsync(async (req: Request & { user?: any }, res: Respons
     statusCode: httpStatus.OK,
     success: true,
     message: 'Shop updated successfully',
-    data: result
+    data: result,
   });
 });
 
@@ -83,10 +83,29 @@ const deleteShop = catchAsync(async (req: Request & { user?: IAuthUser }, res: R
   });
 });
 
+const getMyShop = catchAsync(async (req: Request & { user?: any }, res: Response) => {
+  const userEmail = req.user?.email;
+  console.log(userEmail);
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User information not found');
+  }
+
+  const result = await ShopService.getMyShop(userEmail);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Shop retrieved successfully',
+    data: result,
+  });
+});
+
 export const ShopController = {
   createShop,
   getAllShops,
   getShopById,
   updateShop,
   deleteShop,
+  getMyShop,
 };

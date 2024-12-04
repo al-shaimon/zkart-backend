@@ -2,16 +2,13 @@ import { Admin, Customer, Prisma, UserRole, UserStatus, Vendor } from '@prisma/c
 import * as bcrypt from 'bcrypt';
 import prisma from '../../../shared/prisma';
 import { fileUploader } from '../../../helpers/fileUploader';
-import { IFile } from '../../interfaces/file';
 import { Request } from 'express';
 import { IPaginationOptions } from '../../interfaces/pagination';
 import { paginationHelper } from '../../../helpers/paginationHelper';
 import { userSearchAbleFields } from './user.constant';
 import { IAuthUser } from '../../interfaces/common';
-
 const createAdmin = async (req: Request): Promise<Admin> => {
-  const file = req.file as IFile;
-
+  const file = req.file as Express.Multer.File | undefined;
   if (file) {
     const uploadToCloudinary = await fileUploader.uploadToCloudinary(file);
 
@@ -42,7 +39,7 @@ const createAdmin = async (req: Request): Promise<Admin> => {
 };
 
 const createVendor = async (req: Request): Promise<Vendor> => {
-  const file = req.file as IFile;
+  const file = req.file as Express.Multer.File | undefined;
 
   if (file) {
     const uploadToCloudinary = await fileUploader.uploadToCloudinary(file);
@@ -74,7 +71,7 @@ const createVendor = async (req: Request): Promise<Vendor> => {
 };
 
 const createCustomer = async (req: Request): Promise<Customer> => {
-  const file = req.file as IFile;
+  const file = req.file as Express.Multer.File | undefined;
 
   if (file) {
     const uploadToCloudinary = await fileUploader.uploadToCloudinary(file);
@@ -251,7 +248,7 @@ const updateMyProfile = async (user: IAuthUser, req: Request) => {
     },
   });
 
-  const file = req.file as IFile;
+  const file = req.file as Express.Multer.File | undefined;
 
   let profileInfo;
 

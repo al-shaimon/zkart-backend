@@ -6,6 +6,8 @@ import { OrderService } from './order.service';
 import pick from '../../../shared/pick';
 import { orderFilterableFields } from './order.constant';
 import ApiError from '../../errors/ApiError';
+import Stripe from 'stripe';
+import config from '../../../config';
 
 const createOrder = catchAsync(async (req: Request, res: Response) => {
   const userEmail = req.user?.email;
@@ -113,6 +115,37 @@ const getVendorOrders = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const webhook = catchAsync(async (req: Request, res: Response) => {
+  const sig = req.headers['stripe-signature'];
+
+  if (!sig) {
+    throw new Error('Webhook Error: No Stripe signature found');
+  }
+
+  try {
+    const stripe = new Stripe(config.stripe.secretKey, {
+      apiVersion: '2024-11-20.acacia',
+    });
+
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      config.stripe.webhookSecret
+    );
+
+    await OrderService.handleStripeWebhook(event);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Webhook processed successfully',
+      data: { received: true }
+    });
+  } catch (err: any) {
+    throw new Error(`Webhook Error: ${err.message}`);
+  }
+});
+
 export const OrderController = {
   createOrder,
   getAllOrders,
@@ -120,4 +153,5 @@ export const OrderController = {
   getOrderById,
   updateOrderStatus,
   getVendorOrders,
+  webhook,
 };

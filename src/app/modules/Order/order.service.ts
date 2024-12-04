@@ -2,12 +2,18 @@ import { Order, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import prisma from '../../../shared/prisma';
 import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
-import { IOrderCreate, IOrderFilters, IOrderResponse, IOrderItemCreate } from './order.interface';
+import { IOrderCreate, IOrderFilters, IOrderResponse, IOrderItemCreate, IOrderWithPayment } from './order.interface';
 import { IPaginationOptions } from '../../interfaces/pagination';
 import { paginationHelper } from '../../../helpers/paginationHelper';
 import { orderSearchableFields } from './order.constant';
+import Stripe from 'stripe';
+import config from '../../../config';
 
-const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IOrderResponse> => {
+const stripe = new Stripe(config.stripe.secretKey, {
+  apiVersion: '2024-11-20.acacia',
+});
+
+const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IOrderWithPayment> => {
   const customer = await prisma.customer.findUnique({
     where: { email: userEmail, isDeleted: false },
   });
@@ -68,17 +74,29 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
     discount = Math.min((totalAmount * coupon.discount) / 100, coupon.usageLimit || totalAmount);
   }
 
+  const finalAmount = totalAmount - discount;
+
+  // Create Stripe Payment Intent
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: Math.round(finalAmount * 100), // Convert to cents
+    currency: 'usd',
+    metadata: {
+      customerEmail: userEmail,
+      cartId: cart.id,
+    },
+  });
+
   const result = await prisma.$transaction(async (tx) => {
+    // Create the order
     const order = await tx.order.create({
       data: {
         customerId: customer.id,
         shopId: cart.shop.id,
-        totalAmount,
+        totalAmount: finalAmount,
         discount,
         status: OrderStatus.PENDING,
         paymentStatus: PaymentStatus.PENDING,
-        paymentMethod: payload.paymentMethod,
-        paymentId: null,
+        paymentId: paymentIntent.id, // Store the payment intent ID
         couponId: payload.couponId || null,
         orderItems: {
           create: orderItems,
@@ -109,28 +127,39 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
       },
     });
 
+    // Update product stock
+    for (const item of orderItems) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          stock: {
+            decrement: item.quantity,
+          },
+        },
+      });
+    }
+
+    // Update coupon usage if used
     if (payload.couponId) {
       await tx.coupon.update({
         where: { id: payload.couponId },
-        data: { usageCount: { increment: 1 } },
+        data: {
+          usageCount: {
+            increment: 1,
+          },
+        },
       });
     }
 
-    for (const item of cart.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
-    }
-
+    // Clear the cart
     await tx.cartItem.deleteMany({
       where: { cartId: cart.id },
     });
-    await tx.cart.delete({
-      where: { id: cart.id },
-    });
 
-    return order;
+    return {
+      order,
+      clientSecret: paymentIntent.client_secret,
+    };
   });
 
   return result;
@@ -546,6 +575,37 @@ const getVendorOrders = async (
   };
 };
 
+// Add webhook handler in the same service
+const handleStripeWebhook = async (event: Stripe.Event) => {
+  switch (event.type) {
+    case 'payment_intent.succeeded': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      
+      // Update order status
+      await prisma.order.update({
+        where: { paymentId: paymentIntent.id },
+        data: {
+          paymentStatus: PaymentStatus.PAID,
+          status: OrderStatus.PROCESSING,
+        },
+      });
+      break;
+    }
+
+    case 'payment_intent.payment_failed': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      
+      await prisma.order.update({
+        where: { paymentId: paymentIntent.id },
+        data: {
+          paymentStatus: PaymentStatus.FAILED,
+        },
+      });
+      break;
+    }
+  }
+};
+
 export const OrderService = {
   createOrder,
   getAllOrders,
@@ -553,4 +613,5 @@ export const OrderService = {
   getOrderById,
   updateOrderStatus,
   getVendorOrders,
+  handleStripeWebhook,
 };

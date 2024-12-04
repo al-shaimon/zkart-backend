@@ -49,4 +49,11 @@ router.get(
   OrderController.getAllOrders
 );
 
+// Add webhook route
+router.post(
+  '/webhook',
+  express.raw({ type: 'application/json' }),
+  OrderController.webhook
+);
+
 export const OrderRoutes = router;

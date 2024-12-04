@@ -52,3 +52,8 @@ export type IOrderResponse = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export interface IOrderWithPayment {
+  order: IOrderResponse;
+  clientSecret: string | null;
+}

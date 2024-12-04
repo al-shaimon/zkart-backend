@@ -24,4 +24,8 @@ export default {
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY as string,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET as string,
+  },
 };

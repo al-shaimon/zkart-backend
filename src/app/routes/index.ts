@@ -10,6 +10,7 @@ import { ShopRoutes } from '../modules/Shop/shop.routes';
 import { CartRoutes } from '../modules/Cart/cart.routes';
 import { OrderRoutes } from '../modules/Order/order.routes';
 import { CouponRoutes } from '../modules/Coupon/coupon.routes';
+import { PaymentRoutes } from '../modules/Payment/payment.routes';
 
 const router = express.Router();
 
@@ -57,6 +58,10 @@ const moduleRoutes = [
   {
     path: '/coupon',
     route: CouponRoutes,
+  },
+  {
+    path: '/payment',
+    route: PaymentRoutes,
   },
 ];
 

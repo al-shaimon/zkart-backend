@@ -110,7 +110,7 @@ model Order {
   couponId      String?
   coupon        Coupon?       @relation(fields: [couponId], references: [id])
   discount      Float         @default(0)
-  paymentId     String?
+  paymentId     String?       @unique
   paymentStatus PaymentStatus @default(PENDING)
   paymentMethod PaymentMethod @default(STRIPE)
   reviews       Review[]
@@ -405,5 +405,5 @@ enum PaymentStatus {
 
 enum PaymentMethod {
   STRIPE
-  AAMARPAY
+  // AAMARPAY
 }

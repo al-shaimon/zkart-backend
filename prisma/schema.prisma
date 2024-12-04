@@ -54,6 +54,7 @@ model Customer {
   // Many-to-many relations with junction tables
   recentlyViewed     CustomerRecentProduct[]
   productComparisons CustomerProductComparison[]
+  cartId             String?
 
   @@map("customers")
 }
@@ -137,15 +138,17 @@ model Review {
 }
 
 model Cart {
-  id         String   @id @default(uuid())
-  customerId String   @unique
-  customer   Customer @relation(fields: [customerId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id         String     @id @default(uuid())
+  customerId String     @unique
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  shopId     String
+  shop       Shop       @relation(fields: [shopId], references: [id])
+  items      CartItem[]
+  isDeleted  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
-  items CartItem[]
-
-  @@map("carts")
+  @@index([shopId])
 }
 
 // Product model update
@@ -201,6 +204,7 @@ model Shop {
   products      Product[]
   followers     ShopFollower[]
   ShopBlacklist ShopBlacklist?
+  cart          Cart[]
 
   @@map("shops")
 }

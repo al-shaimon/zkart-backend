@@ -4,9 +4,16 @@ import { ProductService } from './product.service';
 import sendResponse from '../../../shared/sendResponse';
 import httpStatus from 'http-status';
 import pick from '../../../shared/pick';
+import ApiError from '../../errors/ApiError';
 
-const createProduct = catchAsync(async (req: Request, res: Response) => {
-  const result = await ProductService.createProduct(req.body);
+const createProduct = catchAsync(async (req: Request & { user?: any }, res: Response) => {
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User information not found');
+  }
+
+  const result = await ProductService.createProduct(req, userEmail);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -50,7 +57,14 @@ const getProductById = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateProduct = catchAsync(async (req: Request & { user?: any }, res: Response) => {
-  const result = await ProductService.updateProduct(req.params.id, req.user.vendorId, req.body);
+  const { id } = req.params;
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User information not found');
+  }
+
+  const result = await ProductService.updateProduct(req, id, userEmail);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

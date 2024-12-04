@@ -36,13 +36,13 @@ const moduleRoutes = [
     route: ProductRoutes,
   },
   {
-    path: '/categories',
-    route: CategoryRoutes
+    path: '/category',
+    route: CategoryRoutes,
   },
   {
-    path: '/shops',
-    route: ShopRoutes
-  }
+    path: '/shop',
+    route: ShopRoutes,
+  },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

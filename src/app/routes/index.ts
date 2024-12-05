@@ -13,6 +13,7 @@ import { CouponRoutes } from '../modules/Coupon/coupon.routes';
 import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ComparisonRoutes } from '../modules/Comparison/comparison.routes';
 import { RecentViewRoutes } from '../modules/RecentView/recentView.routes';
+import { ShopFollowerRoutes } from '../modules/ShopFollower/shopFollower.routes';
 
 const router = express.Router();
 
@@ -72,6 +73,10 @@ const moduleRoutes = [
   {
     path: '/recent-view',
     route: RecentViewRoutes,
+  },
+  {
+    path: '/',
+    route: ShopFollowerRoutes,
   },
 ];
 

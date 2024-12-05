@@ -1,6 +1,11 @@
 import { Prisma, Product } from '@prisma/client';
 import prisma from '../../../shared/prisma';
-import { IProductCreate, IProductFilters, IProductUpdate } from './product.interface';
+import {
+  IProductCreate,
+  IProductFilters,
+  IProductUpdate,
+  IFlashSaleCreate,
+} from './product.interface';
 import { IPaginationOptions } from '../../interfaces/pagination';
 import { paginationHelper } from '../../../helpers/paginationHelper';
 import ApiError from '../../errors/ApiError';
@@ -222,23 +227,23 @@ const updateProduct = async (
         price: req.body.price ? parseFloat(req.body.price) : existingProduct.price,
         stock: req.body.stock ? parseInt(req.body.stock) : existingProduct.stock,
         categoryId: req.body.categoryId || existingProduct.categoryId,
-        image: newImageUrls[0] || existingProduct.image
-      }
+        image: newImageUrls[0] || existingProduct.image,
+      },
     });
 
     // Replace existing images with new ones
     if (newImageUrls.length > 0) {
       // Delete existing images
       await tx.productImage.deleteMany({
-        where: { productId }
+        where: { productId },
       });
 
       // Add new images without order field
       await tx.productImage.createMany({
         data: newImageUrls.map((url) => ({
           url,
-          productId
-        }))
+          productId,
+        })),
       });
     }
 
@@ -248,8 +253,8 @@ const updateProduct = async (
       include: {
         category: true,
         shop: true,
-        images: true
-      }
+        images: true,
+      },
     });
   });
 
@@ -313,6 +318,188 @@ const duplicateProduct = async (id: string, vendorId: string): Promise<Product> 
   return result;
 };
 
+const getFlashSaleProducts = async (options: IPaginationOptions) => {
+  const { limit, page, skip } = paginationHelper.calculatePagination(options);
+
+  const currentDate = new Date();
+
+  const whereConditions: Prisma.ProductWhereInput = {
+    isDeleted: false,
+    isFlashSale: true,
+    flashSaleEnds: {
+      gte: currentDate, // Sale hasn't ended
+    },
+    stock: {
+      gt: 0, // Only show products with stock
+    },
+    shop: {
+      isDeleted: false,
+      ShopBlacklist: null, // Exclude products from blacklisted shops
+    },
+  };
+
+  const result = await prisma.product.findMany({
+    where: whereConditions,
+    skip,
+    take: limit,
+    orderBy: [
+      {
+        discount: 'desc', // Higher discounts first
+      },
+      {
+        flashSaleEnds: 'asc', // Ending sooner appears first
+      },
+    ],
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      flashSalePrice: true,
+      discount: true,
+      flashSaleEnds: true,
+      stock: true,
+      image: true,
+      images: {
+        where: {
+          isMain: true,
+        },
+        take: 1,
+      },
+      shop: {
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+        },
+      },
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  const total = await prisma.product.count({
+    where: whereConditions,
+  });
+
+  // Transform the data to include calculated fields
+  const transformedData = result.map((product) => ({
+    ...product,
+    discountPercentage: product.discount || 0,
+    discountedPrice: product.flashSalePrice || product.price,
+    mainImage: product.images[0]?.url || product.image,
+  }));
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+    },
+    data: transformedData,
+  };
+};
+
+const createFlashSale = async (
+  payload: IFlashSaleCreate,
+  userEmail: string
+): Promise<Product> => {
+  const { productId, flashSalePrice, discount, flashSaleEnds } = payload;
+
+  // Find vendor
+  const vendor = await prisma.vendor.findUnique({
+    where: {
+      email: userEmail,
+      isDeleted: false,
+    },
+  });
+
+  if (!vendor) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Vendor not found');
+  }
+
+  // Check if product exists and belongs to vendor's shop
+  const product = await prisma.product.findFirst({
+    where: {
+      id: productId,
+      isDeleted: false,
+      shop: {
+        vendorId: vendor.id,
+      },
+    },
+  });
+
+  if (!product) {
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      'Product not found or you do not have permission to update it'
+    );
+  }
+
+  let calculatedFlashSalePrice: number;
+  let calculatedDiscount: number;
+
+  // Calculate based on which value was provided
+  if (flashSalePrice !== undefined) {
+    // Validate flash sale price
+    if (flashSalePrice >= product.price) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'Flash sale price must be less than regular price'
+      );
+    }
+    calculatedFlashSalePrice = flashSalePrice;
+    // Calculate discount percentage
+    calculatedDiscount = Number(
+      (((product.price - flashSalePrice) / product.price) * 100).toFixed(2)
+    );
+  } else if (discount !== undefined) {
+    // Calculate flash sale price from discount
+    calculatedDiscount = discount;
+    calculatedFlashSalePrice = Number(
+      (product.price - (product.price * discount) / 100).toFixed(2)
+    );
+  } else {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Either flash sale price or discount must be provided'
+    );
+  }
+
+  // Validate flash sale end date
+  const currentDate = new Date();
+  const endDate = new Date(flashSaleEnds);
+
+  if (endDate <= currentDate) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Flash sale end date must be in the future'
+    );
+  }
+
+  // Update product with flash sale details
+  const updatedProduct = await prisma.product.update({
+    where: { id: productId },
+    data: {
+      isFlashSale: true,
+      flashSalePrice: calculatedFlashSalePrice,
+      discount: calculatedDiscount,
+      flashSaleEnds: endDate,
+    },
+    include: {
+      category: true,
+      shop: true,
+      images: true,
+    },
+  });
+
+  return updatedProduct;
+};
+
 export const ProductService = {
   createProduct,
   getAllProducts,
@@ -320,4 +507,6 @@ export const ProductService = {
   updateProduct,
   deleteProduct,
   duplicateProduct,
+  getFlashSaleProducts,
+  createFlashSale,
 };

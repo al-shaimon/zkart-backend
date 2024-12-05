@@ -96,6 +96,37 @@ const duplicateProduct = catchAsync(async (req: Request & { user?: any }, res: R
   });
 });
 
+const getFlashSaleProducts = catchAsync(async (req: Request, res: Response) => {
+  const options = pick(req.query, ['limit', 'page']);
+
+  const result = await ProductService.getFlashSaleProducts(options);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Flash sale products retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const createFlashSale = catchAsync(async (req: Request, res: Response) => {
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+  }
+
+  const result = await ProductService.createFlashSale(req.body, userEmail);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Flash sale created successfully',
+    data: result,
+  });
+});
+
 export const ProductController = {
   createProduct,
   getAllProducts,
@@ -103,4 +134,6 @@ export const ProductController = {
   updateProduct,
   deleteProduct,
   duplicateProduct,
+  getFlashSaleProducts,
+  createFlashSale,
 };

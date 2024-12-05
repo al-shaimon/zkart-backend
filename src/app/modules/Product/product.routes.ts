@@ -3,10 +3,14 @@ import { ProductController } from './product.controller';
 import auth from '../../middlewares/auth';
 import { UserRole } from '@prisma/client';
 import { fileUploader } from '../../../helpers/fileUploader';
+import validateRequest from '../../middlewares/validateRequest';
+import { ProductValidation } from './product.validation';
 
 const router = express.Router();
 
 router.get('/', ProductController.getAllProducts);
+
+router.get('/flash-sale', ProductController.getFlashSaleProducts);
 
 router.get('/:id', ProductController.getProductById);
 
@@ -43,5 +47,12 @@ router.patch(
 router.delete('/:id', auth(UserRole.VENDOR), ProductController.deleteProduct);
 
 router.post('/duplicate/:id', auth(UserRole.VENDOR), ProductController.duplicateProduct);
+
+router.post(
+  '/flash-sale',
+  auth(UserRole.VENDOR),
+  validateRequest(ProductValidation.createFlashSale),
+  ProductController.createFlashSale
+);
 
 export const ProductRoutes = router;

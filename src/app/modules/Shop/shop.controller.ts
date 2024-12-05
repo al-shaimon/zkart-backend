@@ -69,7 +69,7 @@ const updateShop = catchAsync(async (req: Request & { user?: any }, res: Respons
   });
 });
 
-const deleteShop = catchAsync(async (req: Request & { user?: IAuthUser }, res: Response) => {
+const deleteShop = catchAsync(async (req: Request & { user?: any }, res: Response) => {
   const { id } = req.params;
   const vendorId = req.user?.id;
 

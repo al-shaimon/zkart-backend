@@ -14,6 +14,7 @@ import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ComparisonRoutes } from '../modules/Comparison/comparison.routes';
 import { RecentViewRoutes } from '../modules/RecentView/recentView.routes';
 import { ShopFollowerRoutes } from '../modules/ShopFollower/shopFollower.routes';
+import { ShopBlacklistRoutes } from '../modules/ShopBlacklist/shopBlacklist.routes';
 
 const router = express.Router();
 
@@ -77,6 +78,10 @@ const moduleRoutes = [
   {
     path: '/',
     route: ShopFollowerRoutes,
+  },
+  {
+    path: '/',
+    route: ShopBlacklistRoutes,
   },
 ];
 

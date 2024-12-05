@@ -13,8 +13,8 @@ const createShop = async (req: Request, userEmail: string): Promise<Shop> => {
   const vendor = await prisma.vendor.findUnique({
     where: {
       email: userEmail,
-      isDeleted: false
-    }
+      isDeleted: false,
+    },
   });
 
   if (!vendor) {
@@ -25,8 +25,8 @@ const createShop = async (req: Request, userEmail: string): Promise<Shop> => {
   const existingShop = await prisma.shop.findFirst({
     where: {
       vendorId: vendor.id,
-      isDeleted: false
-    }
+      isDeleted: false,
+    },
   });
 
   if (existingShop) {
@@ -49,7 +49,7 @@ const createShop = async (req: Request, userEmail: string): Promise<Shop> => {
       name: req.body.name,
       description: req.body.description,
       logo: logoUrl,
-      vendorId: vendor.id
+      vendorId: vendor.id,
     };
   } catch (error) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid shop data format');
@@ -58,8 +58,8 @@ const createShop = async (req: Request, userEmail: string): Promise<Shop> => {
   const result = await prisma.shop.create({
     data: shopData,
     include: {
-      vendor: true
-    }
+      vendor: true,
+    },
   });
 
   return result;
@@ -70,6 +70,10 @@ const getAllShops = async (filters: IShopFilters, options: IPaginationOptions) =
   const { limit, page, skip } = paginationHelper.calculatePagination(options);
 
   const andConditions: Prisma.ShopWhereInput[] = [];
+
+  andConditions.push({
+    ShopBlacklist: null,
+  });
 
   if (searchTerm) {
     andConditions.push({
@@ -131,6 +135,15 @@ const getAllShops = async (filters: IShopFilters, options: IPaginationOptions) =
 };
 
 const getShopById = async (id: string): Promise<Shop> => {
+  // Check if shop is blacklisted
+  const blacklistedShop = await prisma.shopBlacklist.findUnique({
+    where: { shopId: id },
+  });
+
+  if (blacklistedShop) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'This shop has been blacklisted');
+  }
+
   const result = await prisma.shop.findUnique({
     where: { id, isDeleted: false },
     include: {
@@ -153,17 +166,13 @@ const getShopById = async (id: string): Promise<Shop> => {
   return result;
 };
 
-const updateShop = async (
-  req: Request,
-  shopId: string,
-  userEmail: string
-): Promise<Shop> => {
+const updateShop = async (req: Request, shopId: string, userEmail: string): Promise<Shop> => {
   // First, get the vendor information using the email
   const vendor = await prisma.vendor.findUnique({
     where: {
       email: userEmail,
-      isDeleted: false
-    }
+      isDeleted: false,
+    },
   });
 
   if (!vendor) {
@@ -175,8 +184,8 @@ const updateShop = async (
     where: {
       id: shopId,
       vendorId: vendor.id,
-      isDeleted: false
-    }
+      isDeleted: false,
+    },
   });
 
   if (!existingShop) {
@@ -202,7 +211,7 @@ const updateShop = async (
     updateData = {
       name: parsedData.name || existingShop.name,
       description: parsedData.description || existingShop.description,
-      logo: logoUrl
+      logo: logoUrl,
     };
   } catch (error) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid shop data format');
@@ -210,12 +219,12 @@ const updateShop = async (
 
   const result = await prisma.shop.update({
     where: {
-      id: shopId
+      id: shopId,
     },
     data: updateData,
     include: {
-      vendor: true
-    }
+      vendor: true,
+    },
   });
 
   return result;
@@ -256,49 +265,55 @@ const deleteShop = async (id: string, vendorId: string): Promise<Shop> => {
 };
 
 const getMyShop = async (userEmail: string): Promise<Shop> => {
-  // First, get the vendor information using the email
   const vendor = await prisma.vendor.findUnique({
     where: {
       email: userEmail,
-      isDeleted: false
-    }
+      isDeleted: false,
+    },
   });
 
   if (!vendor) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Vendor information not found');
   }
 
-  // Get the vendor's shop
   const shop = await prisma.shop.findFirst({
     where: {
       vendorId: vendor.id,
-      isDeleted: false
+      isDeleted: false,
     },
     include: {
       vendor: true,
+      ShopBlacklist: true,
       products: {
         where: {
-          isDeleted: false
+          isDeleted: false,
         },
         include: {
           category: true,
           reviews: {
             include: {
-              customer: true
-            }
-          }
-        }
+              customer: true,
+            },
+          },
+        },
       },
       followers: {
         include: {
-          customer: true
-        }
-      }
-    }
+          customer: true,
+        },
+      },
+    },
   });
 
   if (!shop) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Shop not found');
+  }
+
+  if (shop.ShopBlacklist) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      'Your shop has been blacklisted. Please contact support.'
+    );
   }
 
   return shop;
@@ -310,5 +325,5 @@ export const ShopService = {
   getShopById,
   updateShop,
   deleteShop,
-  getMyShop
+  getMyShop,
 };

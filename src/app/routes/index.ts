@@ -12,6 +12,7 @@ import { OrderRoutes } from '../modules/Order/order.routes';
 import { CouponRoutes } from '../modules/Coupon/coupon.routes';
 import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ComparisonRoutes } from '../modules/Comparison/comparison.routes';
+import { RecentViewRoutes } from '../modules/RecentView/recentView.routes';
 
 const router = express.Router();
 
@@ -67,6 +68,10 @@ const moduleRoutes = [
   {
     path: '/compare',
     route: ComparisonRoutes,
+  },
+  {
+    path: '/recent-view',
+    route: RecentViewRoutes,
   },
 ];
 

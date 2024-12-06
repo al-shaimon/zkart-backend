@@ -379,6 +379,12 @@ const getFlashSaleProducts = async (options: IPaginationOptions) => {
           name: true,
         },
       },
+      reviews: {
+        include: {
+          customer: true,
+          response: true,
+        },
+      },
     },
   });
 
@@ -404,10 +410,7 @@ const getFlashSaleProducts = async (options: IPaginationOptions) => {
   };
 };
 
-const createFlashSale = async (
-  payload: IFlashSaleCreate,
-  userEmail: string
-): Promise<Product> => {
+const createFlashSale = async (payload: IFlashSaleCreate, userEmail: string): Promise<Product> => {
   const { productId, flashSalePrice, discount, flashSaleEnds } = payload;
 
   // Find vendor
@@ -475,10 +478,7 @@ const createFlashSale = async (
   const endDate = new Date(flashSaleEnds);
 
   if (endDate <= currentDate) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      'Flash sale end date must be in the future'
-    );
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Flash sale end date must be in the future');
   }
 
   // Update product with flash sale details

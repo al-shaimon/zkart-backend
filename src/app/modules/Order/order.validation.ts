@@ -21,8 +21,20 @@ const applyCoupon = z.object({
   }),
 });
 
+const updatePayment = z.object({
+  body: z.object({
+    paymentId: z.string({
+      required_error: 'Payment ID is required',
+    }),
+    paymentStatus: z.enum([...Object.values(PaymentStatus)] as [string, ...string[]], {
+      required_error: 'Payment status is required',
+    }),
+  }),
+});
+
 export const OrderValidation = {
   create,
   updateStatus,
   applyCoupon,
+  updatePayment,
 }; 

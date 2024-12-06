@@ -77,5 +77,13 @@ export interface ICouponApplyResponse {
   coupon: {
     code: string;
     discount: number;
+    usageLimit?: number | null;
+    discountType: 'FLAT' | 'UPTO';
+    discountMessage: string;
   };
 }
+
+export type IOrderPaymentUpdate = {
+  paymentStatus: PaymentStatus;
+  paymentId: string;
+};

@@ -35,5 +35,8 @@ export type ICartResponse = {
   coupon?: {
     code: string;
     discount: number;
+    usageLimit?: number | null;
+    discountType: 'FLAT' | 'UPTO';
+    discountMessage: string;
   } | null;
 }; 

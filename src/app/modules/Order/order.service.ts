@@ -2,7 +2,14 @@ import { Order, OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prism
 import prisma from '../../../shared/prisma';
 import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
-import { IOrderCreate, IOrderFilters, IOrderResponse, IOrderItemCreate, IOrderWithPayment } from './order.interface';
+import {
+  IOrderCreate,
+  IOrderFilters,
+  IOrderResponse,
+  IOrderItemCreate,
+  IOrderWithPayment,
+  ICouponApplyResponse,
+} from './order.interface';
 import { IPaginationOptions } from '../../interfaces/pagination';
 import { paginationHelper } from '../../../helpers/paginationHelper';
 import { orderSearchableFields } from './order.constant';
@@ -40,7 +47,7 @@ const createOrder = async (userEmail: string): Promise<IOrderWithPayment> => {
   }
 
   let totalAmount = cart.items.reduce((total, item) => {
-    return total + (item.quantity * item.product.price);
+    return total + item.quantity * item.product.price;
   }, 0);
 
   const discount = cart.discount;
@@ -171,22 +178,19 @@ const applyCoupon = async (code: string, userEmail: string): Promise<ICouponAppl
       isActive: true,
       shopId: cart.shopId,
       validFrom: { lte: new Date() },
-      OR: [
-        { validUntil: null },
-        { validUntil: { gte: new Date() } }
-      ],
+      OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
       AND: [
         {
           OR: [
             { usageLimit: null },
             {
               usageLimit: {
-                gt: prisma.coupon.fields.usageCount
-              }
-            }
-          ]
-        }
-      ]
+                gt: prisma.coupon.fields.usageCount,
+              },
+            },
+          ],
+        },
+      ],
     },
   });
 
@@ -196,33 +200,43 @@ const applyCoupon = async (code: string, userEmail: string): Promise<ICouponAppl
 
   // Calculate cart total and discount
   const cartTotal = cart.items.reduce((total, item) => {
-    return total + (item.quantity * item.product.price);
+    return total + item.quantity * item.product.price;
   }, 0);
 
-  const discount = Math.min(
-    (cartTotal * coupon.discount) / 100,
-    coupon.usageLimit || cartTotal
-  );
+  const calculatedDiscount = (cartTotal * coupon.discount) / 100;
+  let finalDiscount = calculatedDiscount;
+  let discountType: 'FLAT' | 'UPTO' = 'FLAT';
+  let discountMessage = `${coupon.discount}% off on your order`;
 
-  const finalAmount = cartTotal - discount;
+  // Check if there's a usage limit and if it affects the discount
+  if (coupon.usageLimit && calculatedDiscount > coupon.usageLimit) {
+    finalDiscount = coupon.usageLimit;
+    discountType = 'UPTO';
+    discountMessage = `${coupon.discount}% off (up to ${coupon.usageLimit} ${config.currency})`;
+  }
+
+  const finalAmount = cartTotal - finalDiscount;
 
   // Store the coupon and discount in cart
   await prisma.cart.update({
     where: { id: cart.id },
     data: {
       couponId: coupon.id,
-      discount: discount
-    }
+      discount: finalDiscount,
+    },
   });
 
   return {
     originalAmount: cartTotal,
-    discount,
+    discount: finalDiscount,
     finalAmount,
     coupon: {
       code: coupon.code,
       discount: coupon.discount,
-    }
+      usageLimit: coupon.usageLimit,
+      discountType,
+      discountMessage,
+    },
   };
 };
 
@@ -448,10 +462,7 @@ const getOrderById = async (
   if (userRole === 'VENDOR') {
     const shopVendorEmail = order.orderItems[0]?.product.shop.vendor.email;
     if (shopVendorEmail !== userEmail) {
-      throw new ApiError(
-        httpStatus.FORBIDDEN,
-        'You are not authorized to view this order'
-      );
+      throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to view this order');
     }
     return order;
   }
@@ -463,10 +474,7 @@ const getOrderById = async (
     });
 
     if (order.customerId !== customer?.id) {
-      throw new ApiError(
-        httpStatus.FORBIDDEN,
-        'You are not authorized to view this order'
-      );
+      throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to view this order');
     }
     return order;
   }
@@ -641,7 +649,7 @@ const handleStripeWebhook = async (event: Stripe.Event) => {
   switch (event.type) {
     case 'payment_intent.succeeded': {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      
+
       // Update order status
       await prisma.order.update({
         where: { paymentId: paymentIntent.id },
@@ -655,7 +663,7 @@ const handleStripeWebhook = async (event: Stripe.Event) => {
 
     case 'payment_intent.payment_failed': {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      
+
       await prisma.order.update({
         where: { paymentId: paymentIntent.id },
         data: {
@@ -667,6 +675,75 @@ const handleStripeWebhook = async (event: Stripe.Event) => {
   }
 };
 
+const updatePaymentStatus = async (
+  paymentId: string,
+  status: PaymentStatus
+): Promise<IOrderResponse> => {
+  const order = await prisma.order.findUnique({
+    where: { paymentId },
+    include: {
+      orderItems: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          contactNumber: true,
+          address: true,
+        },
+      },
+      coupon: true,
+    },
+  });
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { paymentId },
+    data: {
+      paymentStatus: status,
+      status: status === PaymentStatus.PAID ? OrderStatus.PROCESSING : OrderStatus.PENDING,
+    },
+    include: {
+      orderItems: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          contactNumber: true,
+          address: true,
+        },
+      },
+      coupon: true,
+    },
+  });
+
+  return updatedOrder;
+};
+
 export const OrderService = {
   createOrder,
   applyCoupon,
@@ -676,4 +753,5 @@ export const OrderService = {
   updateOrderStatus,
   getVendorOrders,
   handleStripeWebhook,
+  updatePaymentStatus,
 };

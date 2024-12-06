@@ -7,6 +7,14 @@ import { OrderValidation } from './order.validation';
 
 const router = express.Router();
 
+// Move this route to the top for better visibility
+router.patch(
+  '/payment-status',
+  auth(UserRole.CUSTOMER),
+  validateRequest(OrderValidation.updatePayment),
+  OrderController.updatePaymentStatus
+);
+
 // Customer routes
 router.post(
   '/create-order',
@@ -15,18 +23,10 @@ router.post(
   OrderController.createOrder
 );
 
-router.get(
-  '/my-orders',
-  auth(UserRole.CUSTOMER),
-  OrderController.getMyOrders
-);
+router.get('/my-orders', auth(UserRole.CUSTOMER), OrderController.getMyOrders);
 
 // Vendor routes
-router.get(
-  '/vendor-orders',
-  auth(UserRole.VENDOR),
-  OrderController.getVendorOrders
-);
+router.get('/vendor-orders', auth(UserRole.VENDOR), OrderController.getVendorOrders);
 
 router.patch(
   '/:id/status',
@@ -43,18 +43,10 @@ router.get(
 );
 
 // Admin routes
-router.get(
-  '/',
-  auth(UserRole.ADMIN),
-  OrderController.getAllOrders
-);
+router.get('/', auth(UserRole.ADMIN), OrderController.getAllOrders);
 
 // Add webhook route
-router.post(
-  '/webhook',
-  express.raw({ type: 'application/json' }),
-  OrderController.webhook
-);
+router.post('/webhook', express.raw({ type: 'application/json' }), OrderController.webhook);
 
 // Add new route for applying coupon
 router.post(

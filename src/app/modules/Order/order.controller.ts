@@ -160,6 +160,24 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
   }
 });
 
+const updatePaymentStatus = catchAsync(async (req: Request, res: Response) => {
+  const { paymentId, paymentStatus } = req.body;
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+  }
+
+  const result = await OrderService.updatePaymentStatus(paymentId, paymentStatus);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Payment status updated successfully',
+    data: result,
+  });
+});
+
 export const OrderController = {
   createOrder,
   applyCoupon,
@@ -169,4 +187,5 @@ export const OrderController = {
   updateOrderStatus,
   getVendorOrders,
   webhook,
+  updatePaymentStatus,
 };

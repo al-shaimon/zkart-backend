@@ -198,13 +198,24 @@ const getCart = async (userEmail: string): Promise<ICartResponse> => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Cart not found');
   }
 
-  // Calculate total amount
-  const totalAmount = cart.items.reduce((total, item) => {
+  const cartTotal = cart.items.reduce((total, item) => {
     return total + (item.quantity * item.product.price);
   }, 0);
 
-  // Calculate final amount after discount
-  const finalAmount = totalAmount - (cart.discount || 0);
+  let discountType: 'FLAT' | 'UPTO' = 'FLAT';
+  let discountMessage = '';
+
+  if (cart.coupon) {
+    const calculatedDiscount = (cartTotal * cart.coupon.discount) / 100;
+    if (cart.coupon.usageLimit && calculatedDiscount > cart.coupon.usageLimit) {
+      discountType = 'UPTO';
+      discountMessage = `${cart.coupon.discount}% off (up to ${cart.coupon.usageLimit} ${config.currency})`;
+    } else {
+      discountMessage = `${cart.coupon.discount}% off on your order`;
+    }
+  }
+
+  const finalAmount = cartTotal - (cart.discount || 0);
 
   return {
     id: cart.id,
@@ -214,10 +225,14 @@ const getCart = async (userEmail: string): Promise<ICartResponse> => {
     createdAt: cart.createdAt,
     updatedAt: cart.updatedAt,
     items: cart.items,
-    totalAmount,
+    totalAmount: cartTotal,
     discount: cart.discount || 0,
     finalAmount,
-    coupon: cart.coupon
+    coupon: cart.coupon ? {
+      ...cart.coupon,
+      discountType,
+      discountMessage
+    } : null,
   };
 };
 

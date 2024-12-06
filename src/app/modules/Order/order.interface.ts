@@ -7,8 +7,8 @@ export type IOrderItemCreate = {
 };
 
 export type IOrderCreate = {
-  paymentMethod: PaymentMethod;
-  couponId?: string;
+  paymentMethod?: PaymentMethod;
+  couponCode?: string;
 };
 
 export type IOrderFilters = {
@@ -56,4 +56,26 @@ export type IOrderResponse = {
 export interface IOrderWithPayment {
   order: IOrderResponse;
   clientSecret: string | null;
+}
+
+export type ICouponApply = {
+  code: string;
+};
+
+export interface IOrderClientResponse {
+  id: string;
+  totalAmount: number;
+  clientSecret: string | null;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+}
+
+export interface ICouponApplyResponse {
+  originalAmount: number;
+  discount: number;
+  finalAmount: number;
+  coupon: {
+    code: string;
+    discount: number;
+  };
 }

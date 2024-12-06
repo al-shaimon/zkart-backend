@@ -146,10 +146,21 @@ const addToCart = async (
     };
   });
 
-  return result;
+  const totalAmount = result.items.reduce((total, item) => {
+    return total + (item.quantity * item.product.price);
+  }, 0);
+
+  const finalAmount = totalAmount - (result.discount || 0);
+
+  return {
+    ...result,
+    totalAmount,
+    discount: result.discount || 0,
+    finalAmount,
+  };
 };
 
-const getCart = async (userEmail: string): Promise<ICartResponse | null> => {
+const getCart = async (userEmail: string): Promise<ICartResponse> => {
   const customer = await prisma.customer.findUnique({
     where: { email: userEmail, isDeleted: false },
   });
@@ -159,7 +170,7 @@ const getCart = async (userEmail: string): Promise<ICartResponse | null> => {
   }
 
   const cart = await prisma.cart.findFirst({
-    where: { customerId: customer.id, isDeleted: false },
+    where: { customerId: customer.id },
     include: {
       items: {
         include: {
@@ -174,20 +185,45 @@ const getCart = async (userEmail: string): Promise<ICartResponse | null> => {
           },
         },
       },
+      coupon: {
+        select: {
+          code: true,
+          discount: true,
+        },
+      },
     },
   });
 
-  if (!cart) return null;
+  if (!cart) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Cart not found');
+  }
+
+  // Calculate total amount
+  const totalAmount = cart.items.reduce((total, item) => {
+    return total + (item.quantity * item.product.price);
+  }, 0);
+
+  // Calculate final amount after discount
+  const finalAmount = totalAmount - (cart.discount || 0);
 
   return {
-    ...cart,
-    totalAmount: calculateTotalAmount(cart.items),
+    id: cart.id,
+    customerId: cart.customerId,
+    shopId: cart.shopId,
+    isDeleted: cart.isDeleted,
+    createdAt: cart.createdAt,
+    updatedAt: cart.updatedAt,
+    items: cart.items,
+    totalAmount,
+    discount: cart.discount || 0,
+    finalAmount,
+    coupon: cart.coupon
   };
 };
 
 const updateCartItem = async (
-  itemId: string,
-  payload: ICartItemUpdate,
+  id: string,
+  payload: Partial<ICartItemCreate>,
   userEmail: string
 ): Promise<ICartResponse> => {
   const customer = await prisma.customer.findUnique({
@@ -199,7 +235,7 @@ const updateCartItem = async (
   }
 
   const cartItem = await prisma.cartItem.findUnique({
-    where: { id: itemId },
+    where: { id: id },
     include: {
       cart: true,
       product: true,
@@ -219,15 +255,47 @@ const updateCartItem = async (
   }
 
   await prisma.cartItem.update({
-    where: { id: itemId },
+    where: { id: id },
     data: { quantity: payload.quantity },
   });
 
-  const updatedCart = await getCart(userEmail);
-  if (!updatedCart) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Cart not found');
-  }
-  return updatedCart;
+  const result = await prisma.cart.findFirst({
+    where: { id: cartItem.cartId },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              image: true,
+              stock: true,
+            },
+          },
+        },
+      },
+      coupon: {
+        select: {
+          code: true,
+          discount: true,
+        },
+      },
+    },
+  });
+
+  const totalAmount = result.items.reduce((total, item) => {
+    return total + (item.quantity * item.product.price);
+  }, 0);
+
+  const finalAmount = totalAmount - (result.discount || 0);
+
+  return {
+    ...result,
+    totalAmount,
+    discount: result.discount || 0,
+    finalAmount,
+  };
 };
 
 const removeCartItem = async (itemId: string, userEmail: string): Promise<ICartResponse> => {

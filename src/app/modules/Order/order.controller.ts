@@ -16,12 +16,30 @@ const createOrder = catchAsync(async (req: Request, res: Response) => {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
   }
 
-  const result = await OrderService.createOrder(req.body, userEmail);
+  const result = await OrderService.createOrder(userEmail);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Order created successfully',
+    data: result,
+  });
+});
+
+const applyCoupon = catchAsync(async (req: Request, res: Response) => {
+  const { code } = req.body;
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+  }
+
+  const result = await OrderService.applyCoupon(code, userEmail);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Coupon applied successfully',
     data: result,
   });
 });
@@ -127,11 +145,7 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
       apiVersion: '2024-11-20.acacia',
     });
 
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      config.stripe.webhookSecret
-    );
+    const event = stripe.webhooks.constructEvent(req.body, sig, config.stripe.webhookSecret);
 
     await OrderService.handleStripeWebhook(event);
 
@@ -139,7 +153,7 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
       statusCode: httpStatus.OK,
       success: true,
       message: 'Webhook processed successfully',
-      data: { received: true }
+      data: { received: true },
     });
   } catch (err: any) {
     throw new Error(`Webhook Error: ${err.message}`);
@@ -148,6 +162,7 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
 
 export const OrderController = {
   createOrder,
+  applyCoupon,
   getAllOrders,
   getMyOrders,
   getOrderById,

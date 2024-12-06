@@ -147,8 +147,12 @@ model Cart {
   isDeleted  Boolean    @default(false)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  couponId   String?
+  coupon     Coupon?    @relation(fields: [couponId], references: [id])
+  discount   Float      @default(0)
 
   @@index([shopId])
+  @@map("carts")
 }
 
 // Product model update
@@ -341,6 +345,7 @@ model Coupon {
   shop       Shop      @relation(fields: [shopId], references: [id])
 
   orders Order[]
+  cart   Cart[]
 
   @@map("coupons")
 }

@@ -1,4 +1,4 @@
-import { Order, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { Order, OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import prisma from '../../../shared/prisma';
 import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
@@ -13,7 +13,7 @@ const stripe = new Stripe(config.stripe.secretKey, {
   apiVersion: '2024-11-20.acacia',
 });
 
-const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IOrderWithPayment> => {
+const createOrder = async (userEmail: string): Promise<IOrderWithPayment> => {
   const customer = await prisma.customer.findUnique({
     where: { email: userEmail, isDeleted: false },
   });
@@ -31,6 +31,7 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
         },
       },
       shop: true,
+      coupon: true,
     },
   });
 
@@ -38,47 +39,16 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
     throw new ApiError(httpStatus.BAD_REQUEST, 'Cart is empty');
   }
 
-  let totalAmount = 0;
-  const orderItems: IOrderItemCreate[] = cart.items.map((item) => {
-    if (item.product.stock < item.quantity) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `${item.product.name} is out of stock`);
-    }
-    const itemTotal = item.product.price * item.quantity;
-    totalAmount += itemTotal;
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      price: item.product.price,
-    };
-  });
+  let totalAmount = cart.items.reduce((total, item) => {
+    return total + (item.quantity * item.product.price);
+  }, 0);
 
-  let discount = 0;
-  if (payload.couponId) {
-    const coupon = await prisma.coupon.findUnique({
-      where: {
-        id: payload.couponId,
-        isActive: true,
-        validFrom: { lte: new Date() },
-        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
-      },
-    });
-
-    if (!coupon) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid or expired coupon');
-    }
-
-    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Coupon usage limit exceeded');
-    }
-
-    discount = Math.min((totalAmount * coupon.discount) / 100, coupon.usageLimit || totalAmount);
-  }
-
+  const discount = cart.discount;
   const finalAmount = totalAmount - discount;
 
   // Create Stripe Payment Intent
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(finalAmount * 100), // Convert to cents
+    amount: Math.round(finalAmount * 100),
     currency: 'usd',
     metadata: {
       customerEmail: userEmail,
@@ -93,13 +63,18 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
         customerId: customer.id,
         shopId: cart.shop.id,
         totalAmount: finalAmount,
-        discount,
+        discount: cart.discount,
+        couponId: cart.couponId,
         status: OrderStatus.PENDING,
         paymentStatus: PaymentStatus.PENDING,
-        paymentId: paymentIntent.id, // Store the payment intent ID
-        couponId: payload.couponId || null,
+        paymentMethod: PaymentMethod.STRIPE,
+        paymentId: paymentIntent.id,
         orderItems: {
-          create: orderItems,
+          create: cart.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.product.price,
+          })),
         },
       },
       include: {
@@ -128,7 +103,7 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
     });
 
     // Update product stock
-    for (const item of orderItems) {
+    for (const item of cart.items) {
       await tx.product.update({
         where: { id: item.productId },
         data: {
@@ -139,19 +114,14 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
       });
     }
 
-    // Update coupon usage if used
-    if (payload.couponId) {
-      await tx.coupon.update({
-        where: { id: payload.couponId },
-        data: {
-          usageCount: {
-            increment: 1,
-          },
-        },
-      });
-    }
-
-    // Clear the cart
+    // Clear the cart including coupon
+    await tx.cart.update({
+      where: { id: cart.id },
+      data: {
+        couponId: null,
+        discount: 0,
+      },
+    });
     await tx.cartItem.deleteMany({
       where: { cartId: cart.id },
     });
@@ -163,6 +133,97 @@ const createOrder = async (payload: IOrderCreate, userEmail: string): Promise<IO
   });
 
   return result;
+};
+
+const applyCoupon = async (code: string, userEmail: string): Promise<ICouponApplyResponse> => {
+  const customer = await prisma.customer.findUnique({
+    where: { email: userEmail, isDeleted: false },
+  });
+
+  if (!customer) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Customer not found');
+  }
+
+  // Find the active cart
+  const cart = await prisma.cart.findFirst({
+    where: {
+      customerId: customer.id,
+      isDeleted: false,
+    },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+      },
+      shop: true,
+    },
+  });
+
+  if (!cart || !cart.items.length) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Cart is empty');
+  }
+
+  // Find the coupon
+  const coupon = await prisma.coupon.findFirst({
+    where: {
+      code,
+      isActive: true,
+      shopId: cart.shopId,
+      validFrom: { lte: new Date() },
+      OR: [
+        { validUntil: null },
+        { validUntil: { gte: new Date() } }
+      ],
+      AND: [
+        {
+          OR: [
+            { usageLimit: null },
+            {
+              usageLimit: {
+                gt: prisma.coupon.fields.usageCount
+              }
+            }
+          ]
+        }
+      ]
+    },
+  });
+
+  if (!coupon) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid or expired coupon');
+  }
+
+  // Calculate cart total and discount
+  const cartTotal = cart.items.reduce((total, item) => {
+    return total + (item.quantity * item.product.price);
+  }, 0);
+
+  const discount = Math.min(
+    (cartTotal * coupon.discount) / 100,
+    coupon.usageLimit || cartTotal
+  );
+
+  const finalAmount = cartTotal - discount;
+
+  // Store the coupon and discount in cart
+  await prisma.cart.update({
+    where: { id: cart.id },
+    data: {
+      couponId: coupon.id,
+      discount: discount
+    }
+  });
+
+  return {
+    originalAmount: cartTotal,
+    discount,
+    finalAmount,
+    coupon: {
+      code: coupon.code,
+      discount: coupon.discount,
+    }
+  };
 };
 
 const getAllOrders = async (filters: IOrderFilters, options: IPaginationOptions) => {
@@ -608,6 +669,7 @@ const handleStripeWebhook = async (event: Stripe.Event) => {
 
 export const OrderService = {
   createOrder,
+  applyCoupon,
   getAllOrders,
   getMyOrders,
   getOrderById,

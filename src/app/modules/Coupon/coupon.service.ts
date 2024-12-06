@@ -126,10 +126,7 @@ const updateCoupon = async (
   // For vendor, check if the coupon belongs to their shop
   if (userRole === 'VENDOR') {
     if (coupon.shop.vendor.email !== userEmail) {
-      throw new ApiError(
-        httpStatus.FORBIDDEN,
-        'You are not authorized to update this coupon'
-      );
+      throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to update this coupon');
     }
   }
 
@@ -141,11 +138,7 @@ const updateCoupon = async (
   return result;
 };
 
-const deleteCoupon = async (
-  id: string,
-  userEmail: string,
-  userRole: string
-): Promise<Coupon> => {
+const deleteCoupon = async (id: string, userEmail: string, userRole: string): Promise<Coupon> => {
   const coupon = await prisma.coupon.findUnique({
     where: { id },
     include: {
@@ -164,10 +157,7 @@ const deleteCoupon = async (
   // For vendor, check if the coupon belongs to their shop
   if (userRole === 'VENDOR') {
     if (coupon.shop.vendor.email !== userEmail) {
-      throw new ApiError(
-        httpStatus.FORBIDDEN,
-        'You are not authorized to delete this coupon'
-      );
+      throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to delete this coupon');
     }
   }
 
@@ -197,7 +187,7 @@ const getVendorCoupons = async (
     throw new ApiError(httpStatus.NOT_FOUND, 'Vendor not found');
   }
 
-  const shopIds = vendor.shops.map(shop => shop.id);
+  const shopIds = vendor.shops.map((shop) => shop.id);
   console.log('Shop IDs:', shopIds); // Debug log
 
   const { limit, page, skip } = paginationHelper.calculatePagination(options);

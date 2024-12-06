@@ -56,4 +56,12 @@ router.post(
   OrderController.webhook
 );
 
+// Add new route for applying coupon
+router.post(
+  '/apply-coupon',
+  auth(UserRole.CUSTOMER),
+  validateRequest(OrderValidation.applyCoupon),
+  OrderController.applyCoupon
+);
+
 export const OrderRoutes = router;

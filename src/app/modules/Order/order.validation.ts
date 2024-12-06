@@ -3,11 +3,8 @@ import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 
 const create = z.object({
   body: z.object({
-    paymentMethod: z.enum([...Object.values(PaymentMethod)] as [string, ...string[]], {
-      required_error: 'Payment method is required',
-    }),
-    couponId: z.string().optional(),
-  }),
+    paymentMethod: z.enum([...Object.values(PaymentMethod)] as [string, ...string[]]).optional(),
+  }).optional(),
 });
 
 const updateStatus = z.object({
@@ -16,7 +13,16 @@ const updateStatus = z.object({
   }),
 });
 
+const applyCoupon = z.object({
+  body: z.object({
+    code: z.string({
+      required_error: 'Coupon code is required',
+    }),
+  }),
+});
+
 export const OrderValidation = {
   create,
   updateStatus,
+  applyCoupon,
 }; 

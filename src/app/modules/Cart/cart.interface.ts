@@ -15,6 +15,9 @@ export type ICartResponse = {
   id: string;
   customerId: string;
   shopId: string;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
   items: {
     id: string;
     quantity: number;
@@ -27,4 +30,10 @@ export type ICartResponse = {
     };
   }[];
   totalAmount: number;
+  discount: number;
+  finalAmount: number;
+  coupon?: {
+    code: string;
+    discount: number;
+  } | null;
 }; 

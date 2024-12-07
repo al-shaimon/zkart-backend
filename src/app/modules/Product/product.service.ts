@@ -104,11 +104,11 @@ const getAllProducts = async (filters: IProductFilters, options: IPaginationOpti
   }
 
   if (minPrice !== undefined) {
-    andConditions.push({ price: { gte: minPrice } });
+    andConditions.push({ price: { gte: Number(minPrice) } });
   }
 
   if (maxPrice !== undefined) {
-    andConditions.push({ price: { lte: maxPrice } });
+    andConditions.push({ price: { lte: Number(maxPrice) } });
   }
 
   const whereConditions: Prisma.ProductWhereInput =

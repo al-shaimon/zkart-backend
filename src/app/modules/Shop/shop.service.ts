@@ -150,6 +150,14 @@ const getShopById = async (id: string): Promise<Shop> => {
       vendor: true,
       products: {
         where: { isDeleted: false },
+        include: {
+          category: true,
+          reviews: {
+            include: {
+              customer: true,
+            },
+          },
+        },
       },
       followers: {
         include: {

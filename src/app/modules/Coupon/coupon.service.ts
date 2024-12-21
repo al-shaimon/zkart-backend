@@ -263,6 +263,44 @@ const getVendorCoupons = async (
   };
 };
 
+const getVendorCouponById = async (id: string, userEmail: string): Promise<Coupon> => {
+  // Find vendor and their shops
+  const vendor = await prisma.vendor.findUnique({
+    where: { email: userEmail },
+    include: { shops: true },
+  });
+
+  if (!vendor) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Vendor not found');
+  }
+
+  const shopIds = vendor.shops.map((shop) => shop.id);
+
+  const coupon = await prisma.coupon.findFirst({
+    where: {
+      id,
+      shopId: {
+        in: shopIds,
+      },
+    },
+    include: {
+      shop: {
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+        },
+      },
+    },
+  });
+
+  if (!coupon) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Coupon not found or unauthorized');
+  }
+
+  return coupon;
+};
+
 export const CouponService = {
   createCoupon,
   getAllCoupons,
@@ -270,4 +308,5 @@ export const CouponService = {
   updateCoupon,
   deleteCoupon,
   getVendorCoupons,
+  getVendorCouponById,
 };

@@ -66,8 +66,41 @@ const getVendorProductReviews = catchAsync(async (req: Request, res: Response) =
   });
 });
 
+const getReviewByOrder = catchAsync(async (req: Request, res: Response) => {
+  const userEmail = req.user?.email;
+  if (!userEmail) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+  }
+
+  const result = await ReviewService.getReviewByOrder(req.params.orderId, userEmail);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Reviews retrieved successfully',
+    data: result,
+  });
+});
+
+const getAllReviews = catchAsync(async (req: Request, res: Response) => {
+  const filters = pick(req.query, ['rating']);
+  const options = pick(req.query, ['limit', 'page']);
+  
+  const result = await ReviewService.getAllReviews(filters, options);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'All reviews retrieved successfully',
+    meta: result.meta,
+    data: result.data
+  });
+});
+
 export const ReviewController = {
   createReview,
   getProductReviews,
   getVendorProductReviews,
+  getReviewByOrder,
+  getAllReviews,
 }; 

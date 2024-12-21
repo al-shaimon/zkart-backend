@@ -6,7 +6,14 @@ import httpStatus from 'http-status';
 import cookieParser from 'cookie-parser';
 
 const app: Application = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: ['https://zkart-frontend.vercel.app'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(cookieParser());
 
 // parser

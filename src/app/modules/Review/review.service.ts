@@ -1,6 +1,6 @@
 import { Review, Prisma } from '@prisma/client';
 import prisma from '../../../shared/prisma';
-import { IReviewCreate, IReviewFilters } from './review.interface';
+import { IReviewCreate, IReviewFilters, IReviewByOrderResponse } from './review.interface';
 import { IPaginationOptions } from '../../interfaces/pagination';
 import { paginationHelper } from '../../../helpers/paginationHelper';
 import ApiError from '../../errors/ApiError';
@@ -217,8 +217,116 @@ const getVendorProductReviews = async (
   };
 };
 
+const getReviewByOrder = async (orderId: string, userEmail: string): Promise<IReviewByOrderResponse[]> => {
+  // Find customer
+  const customer = await prisma.customer.findUnique({
+    where: { email: userEmail },
+  });
+
+  if (!customer) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Customer not found');
+  }
+
+  // Get reviews for the order
+  const reviews = await prisma.review.findMany({
+    where: {
+      orderId: orderId,
+      customerId: customer.id,
+    },
+    include: {
+      product: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      response: {
+        select: {
+          id: true,
+          comment: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  return reviews;
+};
+
+const getAllReviews = async (
+  filters: IReviewFilters,
+  options: IPaginationOptions
+) => {
+  const { limit, page, skip } = paginationHelper.calculatePagination(options);
+  const { rating } = filters;
+
+  const whereConditions: Prisma.ReviewWhereInput = {};
+  
+  if (rating) {
+    whereConditions.rating = Number(rating);
+  }
+
+  const reviews = await prisma.review.findMany({
+    where: whereConditions,
+    skip,
+    take: limit,
+    orderBy: {
+      createdAt: 'desc'
+    },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          shop: {
+            select: {
+              id: true,
+              name: true,
+              vendor: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const total = await prisma.review.count({ where: whereConditions });
+
+  return {
+    meta: {
+      page,
+      limit,
+      total
+    },
+    data: reviews
+  };
+};
+
 export const ReviewService = {
   createReview,
   getProductReviews,
   getVendorProductReviews,
+  getReviewByOrder,
+  getAllReviews,
 }; 

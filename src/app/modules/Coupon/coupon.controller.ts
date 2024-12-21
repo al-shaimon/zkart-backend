@@ -116,6 +116,23 @@ const getVendorCoupons = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getVendorCouponById = catchAsync(async (req: Request, res: Response) => {
+  const userEmail = req.user?.email;
+
+  if (!userEmail) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+  }
+
+  const result = await CouponService.getVendorCouponById(req.params.id, userEmail);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Coupon retrieved successfully',
+    data: result,
+  });
+});
+
 export const CouponController = {
   createCoupon,
   getAllCoupons,
@@ -123,4 +140,5 @@ export const CouponController = {
   updateCoupon,
   deleteCoupon,
   getVendorCoupons,
+  getVendorCouponById,
 };

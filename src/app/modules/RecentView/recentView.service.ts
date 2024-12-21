@@ -85,6 +85,30 @@ const getRecentViews = async (userEmail: string) => {
               name: true,
             },
           },
+          shop: {
+            select: {
+              id: true,
+              name: true,
+              logo: true,
+              description: true,
+            },
+          },
+          reviews: {
+            select: {
+              id: true,
+              rating: true,
+              comment: true,
+              customerId: true,
+              createdAt: true,
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
         },
       },
     },

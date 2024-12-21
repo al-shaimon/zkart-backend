@@ -121,7 +121,7 @@ const forgotPassword = async (payload: { email: string }) => {
     config.jwt.reset_pass_token_expires_in as string
   );
 
-  const resetPassLink = config.reset_pass_link + `?userId=${userData.id}&token=${resetPassToken}`;
+  const resetPassLink = config.reset_pass_link + `?email=${userData.email}&token=${resetPassToken}`;
 
   await emailSender(
     userData.email,
@@ -146,32 +146,32 @@ const forgotPassword = async (payload: { email: string }) => {
 const resetPassword = async (
   token: string,
   payload: {
-    id: string;
+    email: string;
     password: string;
   }
 ) => {
-  console.log({ token, payload });
+  // Verify token first
+  const isValidToken = jwtHelpers.verifyToken(token, config.jwt.reset_pass_secret as Secret);
 
+  if (!isValidToken) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'Invalid or expired token');
+  }
+
+  // Find user by email
   const userData = await prisma.user.findUniqueOrThrow({
     where: {
-      id: payload.id,
+      email: payload.email,
       status: UserStatus.ACTIVE,
     },
   });
 
-  const isValidToken = jwtHelpers.verifyToken(token, config.jwt.reset_pass_secret as Secret);
-
-  if (!isValidToken) {
-    throw new ApiError(httpStatus.FORBIDDEN, 'Forbidden!');
-  }
-
-  // hash password
+  // Hash password
   const hashedPassword = await bcrypt.hash(payload.password, 12);
 
-  // update into database
+  // Update password
   await prisma.user.update({
     where: {
-      id: payload.id,
+      email: payload.email,
       status: UserStatus.ACTIVE,
     },
     data: {

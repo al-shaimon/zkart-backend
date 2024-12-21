@@ -3,6 +3,7 @@ import prisma from '../../../shared/prisma';
 import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
 import { ICartItemCreate, ICartItemUpdate, ICartResponse } from './cart.interface';
+import config from '../../../config';
 
 const addToCart = async (
   payload: ICartItemCreate & { replaceCart?: boolean },
@@ -85,6 +86,7 @@ const addToCart = async (
               },
             },
           },
+          coupon: true
         },
       });
 
@@ -133,6 +135,13 @@ const addToCart = async (
             },
           },
         },
+        coupon: {
+          select: {
+            code: true,
+            discount: true,
+            usageLimit: true,
+          },
+        },
       },
     });
 
@@ -143,6 +152,11 @@ const addToCart = async (
     return {
       ...updatedCart,
       totalAmount: calculateTotalAmount(updatedCart.items),
+      coupon: updatedCart.coupon ? {
+        ...updatedCart.coupon,
+        discountType: 'FLAT',
+        discountMessage: `${updatedCart.coupon.discount}% off on your order`
+      } : null
     };
   });
 
@@ -152,11 +166,29 @@ const addToCart = async (
 
   const finalAmount = totalAmount - (result.discount || 0);
 
+  let discountType: 'FLAT' | 'UPTO' = 'FLAT';
+  let discountMessage = '';
+
+  if (result.coupon) {
+    const calculatedDiscount = (totalAmount * result.coupon.discount) / 100;
+    if (result.coupon.usageLimit && calculatedDiscount > result.coupon.usageLimit) {
+      discountType = 'UPTO';
+      discountMessage = `${result.coupon.discount}% off (up to ${result.coupon.usageLimit} ${config.currency})`;
+    } else {
+      discountMessage = `${result.coupon.discount}% off on your order`;
+    }
+  }
+
   return {
     ...result,
     totalAmount,
     discount: result.discount || 0,
     finalAmount,
+    coupon: result.coupon ? {
+      ...result.coupon,
+      discountType,
+      discountMessage
+    } : null,
   };
 };
 
@@ -189,6 +221,7 @@ const getCart = async (userEmail: string): Promise<ICartResponse> => {
         select: {
           code: true,
           discount: true,
+          usageLimit: true,
         },
       },
     },
@@ -265,6 +298,10 @@ const updateCartItem = async (
     throw new ApiError(httpStatus.FORBIDDEN, 'Access denied');
   }
 
+  if (payload.quantity === undefined) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Quantity is required');
+  }
+
   if (cartItem.product.stock < payload.quantity) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Requested quantity not available');
   }
@@ -294,10 +331,15 @@ const updateCartItem = async (
         select: {
           code: true,
           discount: true,
+          usageLimit: true,
         },
       },
     },
   });
+
+  if (!result) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Cart not found after update');
+  }
 
   const totalAmount = result.items.reduce((total, item) => {
     return total + (item.quantity * item.product.price);
@@ -305,11 +347,29 @@ const updateCartItem = async (
 
   const finalAmount = totalAmount - (result.discount || 0);
 
+  let discountType: 'FLAT' | 'UPTO' = 'FLAT';
+  let discountMessage = '';
+
+  if (result.coupon) {
+    const calculatedDiscount = (totalAmount * result.coupon.discount) / 100;
+    if (result.coupon.usageLimit && calculatedDiscount > result.coupon.usageLimit) {
+      discountType = 'UPTO';
+      discountMessage = `${result.coupon.discount}% off (up to ${result.coupon.usageLimit} ${config.currency})`;
+    } else {
+      discountMessage = `${result.coupon.discount}% off on your order`;
+    }
+  }
+
   return {
     ...result,
     totalAmount,
     discount: result.discount || 0,
     finalAmount,
+    coupon: result.coupon ? {
+      ...result.coupon,
+      discountType,
+      discountMessage
+    } : null,
   };
 };
 
@@ -350,6 +410,11 @@ const removeCartItem = async (itemId: string, userEmail: string): Promise<ICartR
       shopId: cartItem.cart.shopId,
       items: [],
       totalAmount: 0,
+      isDeleted: false,
+      createdAt: cartItem.cart.createdAt,
+      updatedAt: cartItem.cart.updatedAt,
+      discount: 0,
+      finalAmount: 0
     };
   }
 

@@ -164,6 +164,7 @@ const getShopById = async (id: string): Promise<Shop> => {
           customer: true,
         },
       },
+     
     },
   });
 

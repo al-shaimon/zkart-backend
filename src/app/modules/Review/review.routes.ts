@@ -22,4 +22,16 @@ router.get(
   ReviewController.getVendorProductReviews
 );
 
+router.get(
+  '/order/:orderId',
+  auth(UserRole.CUSTOMER),
+  ReviewController.getReviewByOrder
+);
+
+router.get(
+  '/admin/all-reviews',
+  auth(UserRole.ADMIN),
+  ReviewController.getAllReviews
+);
+
 export const ReviewRoutes = router;

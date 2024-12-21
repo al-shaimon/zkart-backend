@@ -1,3 +1,15 @@
+import { Shop } from '@prisma/client';
+
+export interface IShopResponse extends Shop {
+  shop: {
+    id: string;
+    name: string;
+    logo: string | null;
+    description: string | null;
+  };
+}
+
+
 export type IShopCreate = {
   name: string;
   description?: string;

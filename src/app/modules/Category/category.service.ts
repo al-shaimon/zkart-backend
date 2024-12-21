@@ -121,7 +121,34 @@ const updateCategory = async (id: string, req: Request): Promise<Category> => {
 };
 
 const deleteCategory = async (id: string): Promise<Category> => {
-  // Soft delete
+  // Check if category has any products
+  const categoryWithProducts = await prisma.category.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          products: {
+            where: {
+              isDeleted: false
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!categoryWithProducts) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
+  }
+
+  if (categoryWithProducts._count.products > 0) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Cannot delete category that has active products. Please remove or reassign all products first.'
+    );
+  }
+
+  // Soft delete if no products exist
   const result = await prisma.category.update({
     where: { id },
     data: { isDeleted: true },

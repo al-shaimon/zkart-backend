@@ -33,4 +33,10 @@ router.patch(
 
 router.delete('/:id', auth(UserRole.ADMIN, UserRole.VENDOR), CouponController.deleteCoupon);
 
+router.get(
+  '/vendor/single/:id',
+  auth(UserRole.VENDOR),
+  CouponController.getVendorCouponById
+);
+
 export const CouponRoutes = router;

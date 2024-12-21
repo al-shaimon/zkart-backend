@@ -13,6 +13,14 @@ import { Request } from 'express';
 import { fileUploader } from '../../../helpers/fileUploader';
 import httpStatus from 'http-status';
 
+// Helper function to check if shop is blacklisted
+const isShopBlacklisted = async (shopId: string): Promise<boolean> => {
+  const blacklistedShop = await prisma.shopBlacklist.findUnique({
+    where: { shopId },
+  });
+  return !!blacklistedShop;
+};
+
 const createProduct = async (req: Request, userEmail: string): Promise<Product> => {
   // First, get the vendor information using the email
   const vendor = await prisma.vendor.findUnique({
@@ -111,6 +119,13 @@ const getAllProducts = async (filters: IProductFilters, options: IPaginationOpti
     andConditions.push({ price: { lte: Number(maxPrice) } });
   }
 
+  andConditions.push({
+    isDeleted: false,
+    shop: {
+      ShopBlacklist: null, // Only include products from non-blacklisted shops
+    },
+  });
+
   const whereConditions: Prisma.ProductWhereInput =
     andConditions.length > 0 ? { AND: andConditions } : {};
 
@@ -151,7 +166,11 @@ const getProductById = async (id: string) => {
     where: { id, isDeleted: false },
     include: {
       category: true,
-      shop: true,
+      shop: {
+        include: {
+          ShopBlacklist: true
+        }
+      },
       images: true,
       reviews: {
         include: {
@@ -164,6 +183,13 @@ const getProductById = async (id: string) => {
 
   if (!result) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
+  }
+
+  if (result.shop.ShopBlacklist) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      'This product is not available as the shop has been blacklisted'
+    );
   }
 
   return result;

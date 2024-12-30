@@ -8,7 +8,11 @@ import cookieParser from 'cookie-parser';
 const app: Application = express();
 app.use(
   cors({
-    origin: ['https://zkart-frontend.vercel.app'],
+    origin: [
+      'http://192.168.0.106:3000',
+      'http://localhost:3000',
+      'https://zkart-frontend.vercel.app',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],

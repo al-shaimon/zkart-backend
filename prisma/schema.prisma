@@ -412,3 +412,27 @@ enum PaymentMethod {
   STRIPE
   // AAMARPAY
 }
+
+// Contact Form Model
+model ContactForm {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contact_forms")
+}
+
+// Newsletter Subscriber Model
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("newsletter_subscribers")
+}

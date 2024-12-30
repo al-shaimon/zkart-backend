@@ -137,7 +137,8 @@ const forgotPassword = async (payload: { email: string }) => {
         </p>
 
     </div>
-    `
+    `,
+    'Reset Your Password'
   );
 
   // console.log(resetPassLink);

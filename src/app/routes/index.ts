@@ -15,6 +15,8 @@ import { ComparisonRoutes } from '../modules/Comparison/comparison.routes';
 import { RecentViewRoutes } from '../modules/RecentView/recentView.routes';
 import { ShopFollowerRoutes } from '../modules/ShopFollower/shopFollower.routes';
 import { ShopBlacklistRoutes } from '../modules/ShopBlacklist/shopBlacklist.routes';
+import { ContactRoutes } from '../modules/Contact/contact.routes';
+import { NewsletterRoutes } from '../modules/Newsletter/newsletter.routes';
 
 const router = express.Router();
 
@@ -82,6 +84,14 @@ const moduleRoutes = [
   {
     path: '/',
     route: ShopBlacklistRoutes,
+  },
+  {
+    path: '/contact',
+    route: ContactRoutes,
+  },
+  {
+    path: '/newsletter',
+    route: NewsletterRoutes,
   },
 ];
 

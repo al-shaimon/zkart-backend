@@ -4,15 +4,12 @@ import router from './app/routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import httpStatus from 'http-status';
 import cookieParser from 'cookie-parser';
+import config from './config';
 
 const app: Application = express();
 app.use(
   cors({
-    origin: [
-      'http://192.168.0.106:3000',
-      'http://localhost:3000',
-      'https://zkart-frontend.vercel.app',
-    ],
+    origin: config.ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
